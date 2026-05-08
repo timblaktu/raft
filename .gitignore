@@ -1,5 +1,11 @@
 *.o
 *.gcno
+*.gcda
+*.gcov
 *~
 libcraft.so
 libcraft.a
+libraft.so
+libraft.a
+tests_main
+result
