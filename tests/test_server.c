@@ -434,7 +434,7 @@ void TestRaft_server_wont_apply_entry_if_there_isnt_a_majority(CuTest* tc)
 }
 
 /* If commitidx > lastApplied: increment lastApplied, apply log[lastApplied]
- * to state machine (§5.3) */
+ * to state machine (ï¿½5.3) */
 void TestRaft_server_increment_lastApplied_when_lastApplied_lt_commitidx(
     CuTest* tc)
 {
@@ -811,7 +811,7 @@ void TestRaft_server_recv_requestvote_response_must_be_candidate_to_receive(
     CuAssertTrue(tc, 0 == raft_get_nvotes_for_me(r));
 }
 
-/* Reply false if term < currentTerm (§5.1) */
+/* Reply false if term < currentTerm (ï¿½5.1) */
 void TestRaft_server_recv_requestvote_reply_false_if_term_less_than_current_term(
     CuTest * tc
     )
@@ -869,7 +869,7 @@ void TestRaft_leader_recv_requestvote_does_not_step_down(
     CuAssertIntEquals(tc, 1, raft_get_current_leader(r));
 }
 
-/* Reply true if term >= currentTerm (§5.1) */
+/* Reply true if term >= currentTerm (ï¿½5.1) */
 void TestRaft_server_recv_requestvote_reply_true_if_term_greater_than_or_equal_to_current_term(
     CuTest * tc
     )
@@ -993,7 +993,7 @@ void TestRaft_server_recv_requestvote_depends_on_candidate_id(
 }
 
 /* If votedFor is null or candidateId, and candidate's log is at
- * least as up-to-date as local log, grant vote (§5.2, §5.4) */
+ * least as up-to-date as local log, grant vote (ï¿½5.2, ï¿½5.4) */
 void TestRaft_server_recv_requestvote_dont_grant_vote_if_we_didnt_vote_for_this_candidate(
     CuTest * tc
     )
@@ -1031,7 +1031,7 @@ void TestRaft_server_recv_requestvote_dont_grant_vote_if_we_didnt_vote_for_this_
 
 /* If requestvote is received within the minimum election timeout of
  * hearing from a current leader, it does not update its term or grant its
- * vote (§6).
+ * vote (ï¿½6).
  */
 void TestRaft_server_recv_requestvote_ignore_if_master_is_fresh(CuTest * tc)
 {
@@ -2771,7 +2771,7 @@ void TestRaft_leader_retries_appendentries_with_decremented_NextIdx_log_inconsis
 /*
  * If there exists an N such that N > commitidx, a majority
  * of matchidx[i] = N, and log[N].term == currentTerm:
- * set commitidx = N (§5.2, §5.4).  */
+ * set commitidx = N (ï¿½5.2, ï¿½5.4).  */
 void TestRaft_leader_append_entry_to_log_increases_idxno(CuTest * tc)
 {
     raft_cbs_t funcs = {
@@ -3990,4 +3990,255 @@ void TestRaft_leader_recv_appendentries_response_set_has_sufficient_logs_after_v
     CuAssertIntEquals(tc, 1, has_sufficient_logs_flag);
     raft_recv_appendentries_response(r, raft_get_node(r, 2), &aer);
     CuAssertIntEquals(tc, 2, has_sufficient_logs_flag);
+}
+
+/* T3: Server property accessor tests */
+
+void TestRaft_server_get_current_leader_defaults_to_neg1(CuTest * tc)
+{
+    void *r = raft_new();
+    CuAssertIntEquals(tc, -1, raft_get_current_leader(r));
+}
+
+void TestRaft_server_get_current_leader_node_defaults_to_null(CuTest * tc)
+{
+    void *r = raft_new();
+    CuAssertPtrEquals(tc, NULL, raft_get_current_leader_node(r));
+}
+
+void TestRaft_server_get_current_leader_node_returns_leader(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_set_callbacks(r, &generic_funcs, NULL);
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+
+    /* become leader: single-voting-node shortcut */
+    raft_set_current_term(r, 1);
+    raft_become_leader(r);
+
+    raft_node_t* leader = raft_get_current_leader_node(r);
+    CuAssertPtrNotNull(tc, leader);
+    CuAssertIntEquals(tc, 1, raft_node_get_id(leader));
+    CuAssertIntEquals(tc, 1, raft_get_current_leader(r));
+}
+
+void TestRaft_server_get_last_applied_entry_defaults_to_null(CuTest * tc)
+{
+    void *r = raft_new();
+    CuAssertPtrEquals(tc, NULL, raft_get_last_applied_entry(r));
+}
+
+void TestRaft_server_get_last_applied_entry_returns_correct_entry(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_set_callbacks(r, &generic_funcs, NULL);
+    raft_add_node(r, NULL, 1, 1);
+
+    raft_entry_t ety = {};
+    ety.data.buf = "hello";
+    ety.data.len = 5;
+    ety.id = 1;
+    ety.term = 1;
+    raft_set_current_term(r, 1);
+    raft_append_entry(r, &ety);
+    raft_set_commit_idx(r, 1);
+
+    /* become leader and apply */
+    raft_become_leader(r);
+
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+        .applylog = __raft_applylog,
+    };
+    raft_set_callbacks(r, &funcs, NULL);
+    raft_apply_all(r);
+
+    raft_entry_t *applied = raft_get_last_applied_entry(r);
+    CuAssertPtrNotNull(tc, applied);
+    CuAssertIntEquals(tc, 1, applied->id);
+}
+
+void TestRaft_server_get_last_log_term_defaults_to_0(CuTest * tc)
+{
+    void *r = raft_new();
+    CuAssertIntEquals(tc, 0, raft_get_last_log_term(r));
+}
+
+void TestRaft_server_get_last_log_term_returns_term_of_last_entry(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_set_callbacks(r, &generic_funcs, NULL);
+    raft_set_current_term(r, 5);
+
+    raft_entry_t ety = {};
+    ety.data.buf = "aaa";
+    ety.data.len = 3;
+    ety.id = 1;
+    ety.term = 5;
+    raft_append_entry(r, &ety);
+    CuAssertIntEquals(tc, 5, raft_get_last_log_term(r));
+}
+
+void TestRaft_server_get_num_voting_nodes_with_mix(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+    raft_add_non_voting_node(r, NULL, 3, 0);
+    raft_add_non_voting_node(r, NULL, 4, 0);
+
+    /* nodes 1 and 2 are voting, 3 and 4 are non-voting */
+    CuAssertIntEquals(tc, 2, raft_get_num_voting_nodes(r));
+}
+
+void TestRaft_server_get_udata_returns_user_data(CuTest * tc)
+{
+    void *r = raft_new();
+    int mydata = 42;
+    raft_set_callbacks(r, &generic_funcs, &mydata);
+    CuAssertPtrEquals(tc, &mydata, raft_get_udata(r));
+}
+
+void TestRaft_server_get_udata_defaults_to_null(CuTest * tc)
+{
+    void *r = raft_new();
+    CuAssertPtrEquals(tc, NULL, raft_get_udata(r));
+}
+
+void TestRaft_server_get_snapshot_last_idx_defaults_to_0(CuTest * tc)
+{
+    void *r = raft_new();
+    CuAssertIntEquals(tc, 0, raft_get_snapshot_last_idx(r));
+}
+
+void TestRaft_server_get_snapshot_last_term_defaults_to_0(CuTest * tc)
+{
+    void *r = raft_new();
+    CuAssertIntEquals(tc, 0, raft_get_snapshot_last_term(r));
+}
+
+void TestRaft_server_get_first_entry_idx_defaults_to_1(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_set_callbacks(r, &generic_funcs, NULL);
+
+    /* get_first_entry_idx asserts current_idx > 0, so add an entry */
+    raft_entry_t ety = {};
+    ety.data.buf = "aaa";
+    ety.data.len = 3;
+    ety.id = 1;
+    ety.term = 1;
+    raft_append_entry(r, &ety);
+
+    CuAssertIntEquals(tc, 1, raft_get_first_entry_idx(r));
+}
+
+void TestRaft_server_get_state_returns_correct_states(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_set_callbacks(r, &generic_funcs, NULL);
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+
+    CuAssertIntEquals(tc, RAFT_STATE_FOLLOWER, raft_get_state(r));
+
+    raft_set_current_term(r, 1);
+    raft_become_candidate(r);
+    CuAssertIntEquals(tc, RAFT_STATE_CANDIDATE, raft_get_state(r));
+
+    raft_become_leader(r);
+    CuAssertIntEquals(tc, RAFT_STATE_LEADER, raft_get_state(r));
+}
+
+void TestRaft_server_get_nodeid_defaults_to_neg1(CuTest * tc)
+{
+    void *r = raft_new();
+    CuAssertIntEquals(tc, -1, raft_get_nodeid(r));
+}
+
+void TestRaft_server_get_nodeid_returns_self_id(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_add_node(r, NULL, 5, 1);
+    CuAssertIntEquals(tc, 5, raft_get_nodeid(r));
+}
+
+void TestRaft_server_get_my_node_defaults_to_null(CuTest * tc)
+{
+    void *r = raft_new();
+    CuAssertPtrEquals(tc, NULL, raft_get_my_node(r));
+}
+
+void TestRaft_server_is_apply_allowed_defaults_to_1(CuTest * tc)
+{
+    void *r = raft_new();
+    CuAssertIntEquals(tc, 1, raft_is_apply_allowed(r));
+}
+
+void TestRaft_server_is_apply_allowed_returns_0_during_snapshot(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_set_callbacks(r, &generic_funcs, NULL);
+    raft_add_node(r, NULL, 1, 1);
+    raft_set_current_term(r, 1);
+    raft_become_leader(r);
+
+    /* need committed entries to snapshot */
+    raft_entry_t ety = {};
+    ety.data.buf = "aaa";
+    ety.data.len = 3;
+    ety.id = 1;
+    ety.term = 1;
+    raft_append_entry(r, &ety);
+
+    ety.id = 2;
+    raft_append_entry(r, &ety);
+
+    raft_set_commit_idx(r, 2);
+
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+        .applylog = __raft_applylog,
+    };
+    raft_set_callbacks(r, &funcs, NULL);
+    raft_apply_all(r);
+
+    CuAssertIntEquals(tc, 1, raft_is_apply_allowed(r));
+    CuAssertIntEquals(tc, 0, raft_begin_snapshot(r, 0));
+    CuAssertIntEquals(tc, 0, raft_is_apply_allowed(r));
+}
+
+void TestRaft_server_is_apply_allowed_returns_1_during_nonblocking_snapshot(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_set_callbacks(r, &generic_funcs, NULL);
+    raft_add_node(r, NULL, 1, 1);
+    raft_set_current_term(r, 1);
+    raft_become_leader(r);
+
+    raft_entry_t ety = {};
+    ety.data.buf = "aaa";
+    ety.data.len = 3;
+    ety.id = 1;
+    ety.term = 1;
+    raft_append_entry(r, &ety);
+
+    ety.id = 2;
+    raft_append_entry(r, &ety);
+
+    raft_set_commit_idx(r, 2);
+
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+        .applylog = __raft_applylog,
+    };
+    raft_set_callbacks(r, &funcs, NULL);
+    raft_apply_all(r);
+
+    CuAssertIntEquals(tc, 0, raft_begin_snapshot(r, RAFT_SNAPSHOT_NONBLOCKING_APPLY));
+    CuAssertIntEquals(tc, 1, raft_is_apply_allowed(r));
 }

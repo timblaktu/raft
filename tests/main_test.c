@@ -192,6 +192,26 @@ extern void TestRaft_follower_recv_appendentries_is_successful_when_previous_log
 extern void TestRaft_leader_sends_appendentries_with_correct_prev_log_idx_when_snapshotted(CuTest*);
 extern void TestRaft_cancel_snapshot_restores_state(CuTest*);
 extern void TestRaft_leader_sends_snapshot_if_log_was_compacted(CuTest*);
+extern void TestRaft_server_get_current_leader_defaults_to_neg1(CuTest*);
+extern void TestRaft_server_get_current_leader_node_defaults_to_null(CuTest*);
+extern void TestRaft_server_get_current_leader_node_returns_leader(CuTest*);
+extern void TestRaft_server_get_last_applied_entry_defaults_to_null(CuTest*);
+extern void TestRaft_server_get_last_applied_entry_returns_correct_entry(CuTest*);
+extern void TestRaft_server_get_last_log_term_defaults_to_0(CuTest*);
+extern void TestRaft_server_get_last_log_term_returns_term_of_last_entry(CuTest*);
+extern void TestRaft_server_get_num_voting_nodes_with_mix(CuTest*);
+extern void TestRaft_server_get_udata_returns_user_data(CuTest*);
+extern void TestRaft_server_get_udata_defaults_to_null(CuTest*);
+extern void TestRaft_server_get_snapshot_last_idx_defaults_to_0(CuTest*);
+extern void TestRaft_server_get_snapshot_last_term_defaults_to_0(CuTest*);
+extern void TestRaft_server_get_first_entry_idx_defaults_to_1(CuTest*);
+extern void TestRaft_server_get_state_returns_correct_states(CuTest*);
+extern void TestRaft_server_get_nodeid_defaults_to_neg1(CuTest*);
+extern void TestRaft_server_get_nodeid_returns_self_id(CuTest*);
+extern void TestRaft_server_get_my_node_defaults_to_null(CuTest*);
+extern void TestRaft_server_is_apply_allowed_defaults_to_1(CuTest*);
+extern void TestRaft_server_is_apply_allowed_returns_0_during_snapshot(CuTest*);
+extern void TestRaft_server_is_apply_allowed_returns_1_during_nonblocking_snapshot(CuTest*);
 
 
 int RunAllTests(void)
@@ -387,6 +407,26 @@ int RunAllTests(void)
     SUITE_ADD_TEST(suite, TestRaft_leader_sends_appendentries_with_correct_prev_log_idx_when_snapshotted);
     SUITE_ADD_TEST(suite, TestRaft_cancel_snapshot_restores_state);
     SUITE_ADD_TEST(suite, TestRaft_leader_sends_snapshot_if_log_was_compacted);
+    SUITE_ADD_TEST(suite, TestRaft_server_get_current_leader_defaults_to_neg1);
+    SUITE_ADD_TEST(suite, TestRaft_server_get_current_leader_node_defaults_to_null);
+    SUITE_ADD_TEST(suite, TestRaft_server_get_current_leader_node_returns_leader);
+    SUITE_ADD_TEST(suite, TestRaft_server_get_last_applied_entry_defaults_to_null);
+    SUITE_ADD_TEST(suite, TestRaft_server_get_last_applied_entry_returns_correct_entry);
+    SUITE_ADD_TEST(suite, TestRaft_server_get_last_log_term_defaults_to_0);
+    SUITE_ADD_TEST(suite, TestRaft_server_get_last_log_term_returns_term_of_last_entry);
+    SUITE_ADD_TEST(suite, TestRaft_server_get_num_voting_nodes_with_mix);
+    SUITE_ADD_TEST(suite, TestRaft_server_get_udata_returns_user_data);
+    SUITE_ADD_TEST(suite, TestRaft_server_get_udata_defaults_to_null);
+    SUITE_ADD_TEST(suite, TestRaft_server_get_snapshot_last_idx_defaults_to_0);
+    SUITE_ADD_TEST(suite, TestRaft_server_get_snapshot_last_term_defaults_to_0);
+    SUITE_ADD_TEST(suite, TestRaft_server_get_first_entry_idx_defaults_to_1);
+    SUITE_ADD_TEST(suite, TestRaft_server_get_state_returns_correct_states);
+    SUITE_ADD_TEST(suite, TestRaft_server_get_nodeid_defaults_to_neg1);
+    SUITE_ADD_TEST(suite, TestRaft_server_get_nodeid_returns_self_id);
+    SUITE_ADD_TEST(suite, TestRaft_server_get_my_node_defaults_to_null);
+    SUITE_ADD_TEST(suite, TestRaft_server_is_apply_allowed_defaults_to_1);
+    SUITE_ADD_TEST(suite, TestRaft_server_is_apply_allowed_returns_0_during_snapshot);
+    SUITE_ADD_TEST(suite, TestRaft_server_is_apply_allowed_returns_1_during_nonblocking_snapshot);
 
     CuSuiteRun(suite);
     CuSuiteDetails(suite, output);
