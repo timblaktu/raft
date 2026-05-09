@@ -15,7 +15,7 @@
 | Task | Status | Description |
 |------|--------|-------------|
 | T1   | TASK:COMPLETE | Node API coverage (test_node.c) |
-| T2   | TASK:PENDING | Log edge cases (test_log.c) |
+| T2   | TASK:COMPLETE | Log edge cases (test_log.c) |
 | T3   | TASK:PENDING | Server property accessors (test_server.c) |
 | T4   | TASK:PENDING | Callback error propagation (test_server.c) |
 | T5   | TASK:PENDING | Election edge cases (test_server.c) |
