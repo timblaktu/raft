@@ -4515,3 +4515,344 @@ void TestRaft_server_persist_vote_fail_in_recv_requestvote(CuTest * tc)
     CuAssertIntEquals(tc, -1, e);
     CuAssertIntEquals(tc, 0, rvr.vote_granted);
 }
+
+/* T5: Election edge cases */
+
+void TestRaft_follower_dont_grant_vote_if_candidate_log_is_shorter_same_term(
+    CuTest * tc)
+{
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+    };
+
+    void *r = raft_new();
+    raft_set_callbacks(r, &funcs, NULL);
+
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+
+    raft_set_current_term(r, 1);
+
+    /* voter has 3 entries at term 1 */
+    raft_entry_t ety = {};
+    ety.term = 1;
+    ety.id = 100;
+    ety.data.len = 4;
+    ety.data.buf = (unsigned char*)"aaa";
+    raft_append_entry(r, &ety);
+    ety.id = 101;
+    raft_append_entry(r, &ety);
+    ety.id = 102;
+    raft_append_entry(r, &ety);
+
+    /* candidate has same last_log_term but shorter log (idx=2 vs our 3) */
+    msg_requestvote_t rv = {
+        .term = 1,
+        .candidate_id = 2,
+        .last_log_idx = 2,
+        .last_log_term = 1,
+    };
+    msg_requestvote_response_t rvr;
+    raft_recv_requestvote(r, raft_get_node(r, 2), &rv, &rvr);
+    CuAssertIntEquals(tc, 0, rvr.vote_granted);
+}
+
+void TestRaft_follower_dont_grant_vote_if_candidate_last_log_term_is_lower(
+    CuTest * tc)
+{
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+    };
+
+    void *r = raft_new();
+    raft_set_callbacks(r, &funcs, NULL);
+
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+
+    raft_set_current_term(r, 2);
+
+    /* voter has 1 entry at term 2 */
+    raft_entry_t ety = {};
+    ety.term = 2;
+    ety.id = 100;
+    ety.data.len = 4;
+    ety.data.buf = (unsigned char*)"aaa";
+    raft_append_entry(r, &ety);
+
+    /* candidate has longer log but lower last_log_term */
+    msg_requestvote_t rv = {
+        .term = 2,
+        .candidate_id = 2,
+        .last_log_idx = 5,
+        .last_log_term = 1,
+    };
+    msg_requestvote_response_t rvr;
+    raft_recv_requestvote(r, raft_get_node(r, 2), &rv, &rvr);
+    CuAssertIntEquals(tc, 0, rvr.vote_granted);
+}
+
+void TestRaft_follower_grant_vote_when_log_is_empty(CuTest * tc)
+{
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+    };
+
+    void *r = raft_new();
+    raft_set_callbacks(r, &funcs, NULL);
+
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+
+    /* empty log should grant vote to any candidate */
+    msg_requestvote_t rv = {
+        .term = 1,
+        .candidate_id = 2,
+        .last_log_idx = 5,
+        .last_log_term = 3,
+    };
+    msg_requestvote_response_t rvr;
+    raft_recv_requestvote(r, raft_get_node(r, 2), &rv, &rvr);
+    CuAssertIntEquals(tc, 1, rvr.vote_granted);
+}
+
+void TestRaft_follower_grant_vote_uses_snapshot_term_when_entry_is_null(
+    CuTest * tc)
+{
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+    };
+
+    void *r = raft_new();
+    raft_set_callbacks(r, &funcs, NULL);
+
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+
+    /* Use begin_load_snapshot to set up snapshotted state properly.
+     * This creates state where current_idx == snapshot_last_idx
+     * but no log entry exists — testing the snapshot branch in __should_grant_vote */
+    raft_begin_load_snapshot(r, 2, 5);
+    raft_end_load_snapshot(r);
+
+    /* re-add the other node since load_snapshot removes non-self nodes */
+    raft_add_node(r, NULL, 2, 0);
+
+    /* now at term 2 (set by load_snapshot), bump to 3 */
+    raft_set_current_term(r, 3);
+
+    /* candidate has higher last_log_term than snapshot term (2) → grant */
+    msg_requestvote_t rv = {
+        .term = 3,
+        .candidate_id = 2,
+        .last_log_idx = 5,
+        .last_log_term = 3,
+    };
+    msg_requestvote_response_t rvr;
+    raft_recv_requestvote(r, raft_get_node(r, 2), &rv, &rvr);
+    CuAssertIntEquals(tc, 1, rvr.vote_granted);
+
+    /* candidate has lower last_log_term than snapshot term → reject */
+    raft_set_current_term(r, 4);
+    rv.term = 4;
+    rv.last_log_term = 1;
+    raft_recv_requestvote(r, raft_get_node(r, 2), &rv, &rvr);
+    CuAssertIntEquals(tc, 0, rvr.vote_granted);
+}
+
+void TestRaft_election_timeout_with_zero_elapsed_does_not_trigger(CuTest * tc)
+{
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+        .send_requestvote = __raft_send_requestvote,
+    };
+
+    void *r = raft_new();
+    raft_set_callbacks(r, &funcs, NULL);
+
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+
+    raft_set_election_timeout(r, 1000);
+
+    /* 0ms elapsed should not trigger election */
+    raft_periodic(r, 0);
+    CuAssertTrue(tc, 1 == raft_is_follower(r));
+}
+
+void TestRaft_candidate_recv_requestvote_from_other_candidate_same_term(
+    CuTest * tc)
+{
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+        .send_requestvote = __raft_send_requestvote,
+    };
+
+    void *r = raft_new();
+    raft_set_callbacks(r, &funcs, NULL);
+
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+    raft_add_node(r, NULL, 3, 0);
+
+    raft_set_current_term(r, 1);
+    raft_become_candidate(r);
+    CuAssertTrue(tc, 1 == raft_is_candidate(r));
+    CuAssertIntEquals(tc, 2, raft_get_current_term(r));
+
+    /* another candidate with same term requests vote — already voted for self */
+    msg_requestvote_t rv = {
+        .term = 2,
+        .candidate_id = 3,
+        .last_log_idx = 0,
+        .last_log_term = 0,
+    };
+    msg_requestvote_response_t rvr;
+    raft_recv_requestvote(r, raft_get_node(r, 3), &rv, &rvr);
+    /* should not grant — already voted for self this term */
+    CuAssertIntEquals(tc, 0, rvr.vote_granted);
+    /* should remain candidate */
+    CuAssertTrue(tc, 1 == raft_is_candidate(r));
+}
+
+void TestRaft_candidate_duplicate_vote_response_does_not_double_count(
+    CuTest * tc)
+{
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+        .send_requestvote = __raft_send_requestvote,
+    };
+
+    void *r = raft_new();
+    raft_set_callbacks(r, &funcs, NULL);
+
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+    raft_add_node(r, NULL, 3, 0);
+    raft_add_node(r, NULL, 4, 0);
+    raft_add_node(r, NULL, 5, 0);
+
+    raft_set_current_term(r, 1);
+    raft_become_candidate(r);
+    CuAssertIntEquals(tc, 2, raft_get_current_term(r));
+
+    /* receive vote from node 2 */
+    msg_requestvote_response_t rvr = {
+        .term = 2,
+        .vote_granted = RAFT_REQUESTVOTE_ERR_GRANTED,
+    };
+    raft_recv_requestvote_response(r, raft_get_node(r, 2), &rvr);
+    /* 2 votes: self + node 2 — not majority of 5 */
+    CuAssertIntEquals(tc, 2, raft_get_nvotes_for_me(r));
+    CuAssertTrue(tc, 1 == raft_is_candidate(r));
+
+    /* duplicate vote from node 2 — vote_for_me is already set, count should stay same */
+    raft_recv_requestvote_response(r, raft_get_node(r, 2), &rvr);
+    CuAssertIntEquals(tc, 2, raft_get_nvotes_for_me(r));
+    CuAssertTrue(tc, 1 == raft_is_candidate(r));
+}
+
+void TestRaft_candidate_nvotes_for_me_includes_self_vote(CuTest * tc)
+{
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+        .send_requestvote = __raft_send_requestvote,
+    };
+
+    void *r = raft_new();
+    raft_set_callbacks(r, &funcs, NULL);
+
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+    raft_add_node(r, NULL, 3, 0);
+
+    /* before election: no votes */
+    CuAssertIntEquals(tc, 0, raft_get_nvotes_for_me(r));
+
+    raft_set_current_term(r, 1);
+    raft_become_candidate(r);
+
+    /* after becoming candidate: 1 vote (self) */
+    CuAssertIntEquals(tc, 1, raft_get_nvotes_for_me(r));
+
+    /* receive vote from node 2 */
+    msg_requestvote_response_t rvr = {
+        .term = 2,
+        .vote_granted = RAFT_REQUESTVOTE_ERR_GRANTED,
+    };
+    raft_recv_requestvote_response(r, raft_get_node(r, 2), &rvr);
+    CuAssertIntEquals(tc, 2, raft_get_nvotes_for_me(r));
+
+    /* receive vote from node 3 — majority reached, becomes leader */
+    raft_recv_requestvote_response(r, raft_get_node(r, 3), &rvr);
+    CuAssertTrue(tc, 1 == raft_is_leader(r));
+}
+
+void TestRaft_follower_rejects_vote_if_already_voted_for_another(CuTest * tc)
+{
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+    };
+
+    void *r = raft_new();
+    raft_set_callbacks(r, &funcs, NULL);
+
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+    raft_add_node(r, NULL, 3, 0);
+
+    raft_set_current_term(r, 1);
+
+    /* vote for node 2 first */
+    msg_requestvote_t rv = {
+        .term = 1,
+        .candidate_id = 2,
+        .last_log_idx = 0,
+        .last_log_term = 0,
+    };
+    msg_requestvote_response_t rvr;
+    raft_recv_requestvote(r, raft_get_node(r, 2), &rv, &rvr);
+    CuAssertIntEquals(tc, 1, rvr.vote_granted);
+    CuAssertIntEquals(tc, 2, raft_get_voted_for(r));
+
+    /* node 3 requests vote in same term — should be rejected */
+    rv.candidate_id = 3;
+    raft_recv_requestvote(r, raft_get_node(r, 3), &rv, &rvr);
+    CuAssertIntEquals(tc, 0, rvr.vote_granted);
+    /* still voted for node 2 */
+    CuAssertIntEquals(tc, 2, raft_get_voted_for(r));
+}
+
+void TestRaft_non_voting_node_does_not_grant_vote(CuTest * tc)
+{
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+    };
+
+    void *r = raft_new();
+    raft_set_callbacks(r, &funcs, NULL);
+
+    /* self is non-voting */
+    raft_add_non_voting_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+
+    msg_requestvote_t rv = {
+        .term = 1,
+        .candidate_id = 2,
+        .last_log_idx = 0,
+        .last_log_term = 0,
+    };
+    msg_requestvote_response_t rvr;
+    raft_recv_requestvote(r, raft_get_node(r, 2), &rv, &rvr);
+    CuAssertIntEquals(tc, 0, rvr.vote_granted);
+}
