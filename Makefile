@@ -3,7 +3,7 @@ TEST_DIR = ./tests
 LLQUEUE_DIR = $(CONTRIB_DIR)/CLinkedListQueue
 VPATH = src
 
-GCOV_OUTPUT = *.gcda *.gcno *.gcov 
+GCOV_OUTPUT = *.gcda *.gcno *.gcov src/*.gcda src/*.gcno src/*.gcov
 GCOV_CCFLAGS = -fprofile-arcs -ftest-coverage
 SHELL  = /bin/bash
 CFLAGS += -Iinclude -Werror -Werror=return-type -Werror=uninitialized -Wcast-align \
@@ -54,10 +54,10 @@ static: $(OBJECTS)
 	ar -r libraft.a $(OBJECTS)
 
 .PHONY: tests
-tests: src/raft_server.c src/raft_server_properties.c src/raft_log.c src/raft_node.c $(TEST_DIR)/main_test.c $(TEST_DIR)/test_*.c $(TEST_DIR)/mock_send_functions.c $(TEST_DIR)/CuTest.c $(LLQUEUE_DIR)/linked_list_queue.c
+tests: $(OBJECTS) $(TEST_DIR)/main_test.c $(TEST_DIR)/test_*.c $(TEST_DIR)/mock_send_functions.c $(TEST_DIR)/CuTest.c $(LLQUEUE_DIR)/linked_list_queue.c
 	$(CC) $(CFLAGS) -o tests_main $^
 	./tests_main
-	gcov raft_server.c
+	gcov -o src src/raft_server.c
 
 .PHONY: test_fuzzer
 test_fuzzer:
