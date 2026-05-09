@@ -4242,3 +4242,276 @@ void TestRaft_server_is_apply_allowed_returns_1_during_nonblocking_snapshot(CuTe
     CuAssertIntEquals(tc, 0, raft_begin_snapshot(r, RAFT_SNAPSHOT_NONBLOCKING_APPLY));
     CuAssertIntEquals(tc, 1, raft_is_apply_allowed(r));
 }
+
+/* Callback error propagation tests */
+
+static int __raft_persist_term_fail(
+    raft_server_t* raft,
+    void *udata,
+    raft_term_t term,
+    int vote
+    )
+{
+    return -1;
+}
+
+static int __raft_persist_vote_fail(
+    raft_server_t* raft,
+    void *udata,
+    int vote
+    )
+{
+    return -1;
+}
+
+static int __raft_log_offer_fail(
+    raft_server_t* raft,
+    void* udata,
+    raft_entry_t *entry,
+    raft_index_t entry_idx)
+{
+    return -1;
+}
+
+static int __raft_log_offer_shutdown(
+    raft_server_t* raft,
+    void* udata,
+    raft_entry_t *entry,
+    raft_index_t entry_idx)
+{
+    return RAFT_ERR_SHUTDOWN;
+}
+
+static int __raft_send_requestvote_fail(raft_server_t* raft,
+                            void* udata,
+                            raft_node_t* node,
+                            msg_requestvote_t* msg)
+{
+    return -1;
+}
+
+static int __raft_send_appendentries_fail(raft_server_t* raft,
+                              void* udata,
+                              raft_node_t* node,
+                              msg_appendentries_t* msg)
+{
+    return -1;
+}
+
+static int __raft_log_poll_fail(
+    raft_server_t* raft,
+    void* udata,
+    raft_entry_t *entry,
+    raft_index_t entry_idx)
+{
+    return -1;
+}
+
+static int __raft_log_pop_fail(
+    raft_server_t* raft,
+    void* udata,
+    raft_entry_t *entry,
+    raft_index_t entry_idx)
+{
+    return -1;
+}
+
+void TestRaft_server_persist_term_fail_propagates_from_set_current_term(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term_fail,
+    };
+    raft_set_callbacks(r, &funcs, NULL);
+    /* term must increase for persist_term to be called */
+    CuAssertIntEquals(tc, -1, raft_set_current_term(r, 1));
+    /* term should not have been updated */
+    CuAssertIntEquals(tc, 0, raft_get_current_term(r));
+}
+
+void TestRaft_server_persist_vote_fail_propagates_from_vote_for_nodeid(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote_fail,
+    };
+    raft_set_callbacks(r, &funcs, NULL);
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+    CuAssertIntEquals(tc, -1, raft_vote_for_nodeid(r, 2));
+}
+
+void TestRaft_server_log_offer_fail_propagates_from_append_entry(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .log_offer = __raft_log_offer_fail,
+    };
+    raft_set_callbacks(r, &funcs, NULL);
+
+    raft_entry_t ety = {};
+    ety.data.buf = "aaa";
+    ety.data.len = 3;
+    ety.id = 1;
+    ety.term = 1;
+    CuAssertIntEquals(tc, -1, raft_append_entry(r, &ety));
+    /* entry should not have been added */
+    CuAssertIntEquals(tc, 0, raft_get_current_idx(r));
+}
+
+void TestRaft_server_log_offer_shutdown_propagates_from_append_entry(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .log_offer = __raft_log_offer_shutdown,
+    };
+    raft_set_callbacks(r, &funcs, NULL);
+
+    raft_entry_t ety = {};
+    ety.data.buf = "aaa";
+    ety.data.len = 3;
+    ety.id = 1;
+    ety.term = 1;
+    CuAssertIntEquals(tc, RAFT_ERR_SHUTDOWN, raft_append_entry(r, &ety));
+}
+
+void TestRaft_server_send_appendentries_fail_propagates_from_send_all(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+        .send_appendentries = __raft_send_appendentries,
+    };
+    raft_set_callbacks(r, &funcs, NULL);
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+    raft_set_current_term(r, 1);
+    raft_become_leader(r);
+
+    /* now switch to the failing callback */
+    raft_cbs_t funcs2 = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+        .send_appendentries = __raft_send_appendentries_fail,
+    };
+    raft_set_callbacks(r, &funcs2, NULL);
+
+    CuAssertIntEquals(tc, -1, raft_send_appendentries_all(r));
+}
+
+void TestRaft_server_applylog_shutdown_propagates_from_periodic(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+        .applylog = __raft_applylog_shutdown,
+    };
+    raft_set_callbacks(r, &funcs, NULL);
+    raft_add_node(r, NULL, 1, 1);
+    raft_set_current_term(r, 1);
+    raft_become_leader(r);
+
+    raft_entry_t ety = {};
+    ety.data.buf = "aaa";
+    ety.data.len = 3;
+    ety.id = 1;
+    ety.term = 1;
+    raft_append_entry(r, &ety);
+    raft_set_commit_idx(r, 1);
+
+    CuAssertIntEquals(tc, RAFT_ERR_SHUTDOWN, raft_periodic(r, 1));
+}
+
+void TestRaft_server_log_poll_fail_propagates_from_poll_entry(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .log_poll = __raft_log_poll_fail,
+    };
+    raft_set_callbacks(r, &funcs, NULL);
+
+    raft_entry_t ety = {};
+    ety.data.buf = "aaa";
+    ety.data.len = 3;
+    ety.id = 1;
+    ety.term = 1;
+    raft_append_entry(r, &ety);
+
+    raft_entry_t *polled;
+    CuAssertIntEquals(tc, -1, raft_poll_entry(r, &polled));
+}
+
+/* raft_delete_entry_from_idx is not in a public header but is defined in raft_server.c */
+int raft_delete_entry_from_idx(raft_server_t* me_, raft_index_t idx);
+
+void TestRaft_server_log_pop_fail_propagates_from_delete_entry(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .log_pop = __raft_log_pop_fail,
+    };
+    raft_set_callbacks(r, &funcs, NULL);
+
+    raft_entry_t ety = {};
+    ety.data.buf = "aaa";
+    ety.data.len = 3;
+    ety.id = 1;
+    ety.term = 1;
+    raft_append_entry(r, &ety);
+
+    CuAssertIntEquals(tc, -1, raft_delete_entry_from_idx(r, 1));
+    /* entry should still be there since pop failed */
+    CuAssertIntEquals(tc, 1, raft_get_current_idx(r));
+}
+
+void TestRaft_server_persist_term_fail_in_recv_requestvote(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term_fail,
+    };
+    raft_set_callbacks(r, &funcs, NULL);
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+
+    msg_requestvote_t rv = {
+        .term = 2,
+        .candidate_id = 2,
+        .last_log_idx = 0,
+        .last_log_term = 0,
+    };
+    msg_requestvote_response_t rvr;
+    int e = raft_recv_requestvote(r, raft_get_node(r, 2), &rv, &rvr);
+    CuAssertIntEquals(tc, -1, e);
+    CuAssertIntEquals(tc, 0, rvr.vote_granted);
+}
+
+void TestRaft_server_persist_vote_fail_in_recv_requestvote(CuTest * tc)
+{
+    void *r = raft_new();
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote_fail,
+    };
+    raft_set_callbacks(r, &funcs, NULL);
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+
+    msg_requestvote_t rv = {
+        .term = 1,
+        .candidate_id = 2,
+        .last_log_idx = 0,
+        .last_log_term = 0,
+    };
+    msg_requestvote_response_t rvr;
+    int e = raft_recv_requestvote(r, raft_get_node(r, 2), &rv, &rvr);
+    CuAssertIntEquals(tc, -1, e);
+    CuAssertIntEquals(tc, 0, rvr.vote_granted);
+}
