@@ -22,8 +22,8 @@
 | T6   | TASK:COMPLETE | AppendEntries edge cases (test_server.c) |
 | T7   | TASK:COMPLETE | Membership change coverage (test_server.c) |
 | T8   | TASK:COMPLETE | Snapshot edge cases (test_snapshotting.c) |
-| T9   | TASK:PENDING | Memory management (test_server.c) |
-| T10  | TASK:PENDING | Entry type helpers and misc API (test_server.c) |
+| T9   | TASK:COMPLETE | Memory management (test_server.c) |
+| T10  | TASK:COMPLETE | Entry type helpers and misc API (test_server.c) |
 
 ---
 
