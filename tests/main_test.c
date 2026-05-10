@@ -251,6 +251,16 @@ extern void TestRaft_recv_entry_succeeds_if_snapshot_nonblocking_apply_is_set(Cu
 extern void TestRaft_follower_recv_appendentries_is_successful_when_previous_log_idx_equals_snapshot_last_idx(CuTest*);
 extern void TestRaft_leader_sends_appendentries_with_correct_prev_log_idx_when_snapshotted(CuTest*);
 extern void TestRaft_cancel_snapshot_restores_state(CuTest*);
+extern void TestRaft_cancel_snapshot_when_none_in_progress_fails(CuTest*);
+extern void TestRaft_set_snapshot_metadata_verified_via_getters(CuTest*);
+extern void TestRaft_begin_snapshot_flags_blocking_vs_nonblocking(CuTest*);
+extern void TestRaft_begin_load_snapshot_with_index_0_fails(CuTest*);
+extern void TestRaft_begin_load_snapshot_removes_non_self_nodes(CuTest*);
+extern void TestRaft_end_load_snapshot_updates_commit_and_last_applied(CuTest*);
+extern void TestRaft_snapshot_is_in_progress_at_each_phase(CuTest*);
+extern void TestRaft_get_snapshot_last_idx_and_term_after_snapshot(CuTest*);
+extern void TestRaft_periodic_during_snapshot_no_election(CuTest*);
+extern void TestRaft_begin_snapshot_when_nothing_to_snapshot(CuTest*);
 extern void TestRaft_leader_sends_snapshot_if_log_was_compacted(CuTest*);
 
 
@@ -506,6 +516,16 @@ int RunAllTests(void)
     SUITE_ADD_TEST(suite, TestRaft_follower_recv_appendentries_is_successful_when_previous_log_idx_equals_snapshot_last_idx);
     SUITE_ADD_TEST(suite, TestRaft_leader_sends_appendentries_with_correct_prev_log_idx_when_snapshotted);
     SUITE_ADD_TEST(suite, TestRaft_cancel_snapshot_restores_state);
+    SUITE_ADD_TEST(suite, TestRaft_cancel_snapshot_when_none_in_progress_fails);
+    SUITE_ADD_TEST(suite, TestRaft_set_snapshot_metadata_verified_via_getters);
+    SUITE_ADD_TEST(suite, TestRaft_begin_snapshot_flags_blocking_vs_nonblocking);
+    SUITE_ADD_TEST(suite, TestRaft_begin_load_snapshot_with_index_0_fails);
+    SUITE_ADD_TEST(suite, TestRaft_begin_load_snapshot_removes_non_self_nodes);
+    SUITE_ADD_TEST(suite, TestRaft_end_load_snapshot_updates_commit_and_last_applied);
+    SUITE_ADD_TEST(suite, TestRaft_snapshot_is_in_progress_at_each_phase);
+    SUITE_ADD_TEST(suite, TestRaft_get_snapshot_last_idx_and_term_after_snapshot);
+    SUITE_ADD_TEST(suite, TestRaft_periodic_during_snapshot_no_election);
+    SUITE_ADD_TEST(suite, TestRaft_begin_snapshot_when_nothing_to_snapshot);
     SUITE_ADD_TEST(suite, TestRaft_leader_sends_snapshot_if_log_was_compacted);
 
     CuSuiteRun(suite);
