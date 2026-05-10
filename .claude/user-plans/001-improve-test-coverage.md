@@ -19,7 +19,7 @@
 | T3   | TASK:COMPLETE | Server property accessors (test_server.c) |
 | T4   | TASK:COMPLETE | Callback error propagation (test_server.c) |
 | T5   | TASK:COMPLETE | Election edge cases (test_server.c) |
-| T6   | TASK:PENDING | AppendEntries edge cases (test_server.c) |
+| T6   | TASK:COMPLETE | AppendEntries edge cases (test_server.c) |
 | T7   | TASK:PENDING | Membership change coverage (test_server.c) |
 | T8   | TASK:PENDING | Snapshot edge cases (test_snapshotting.c) |
 | T9   | TASK:PENDING | Memory management (test_server.c) |
