@@ -5577,6 +5577,196 @@ void TestRaft_membership_remove_node_via_committed_entry(CuTest * tc)
     CuAssertIntEquals(tc, 2, raft_get_num_nodes(r));
 }
 
+/* ===================== Memory management tests ===================== */
+
+void TestRaft_memory_free_after_basic_setup(CuTest * tc)
+{
+    void *r = raft_new();
+    CuAssertTrue(tc, NULL != r);
+    raft_free(r);
+    /* no crash = pass */
+}
+
+void TestRaft_memory_free_after_nodes_and_entries(CuTest * tc)
+{
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+        .log_offer = __raft_log_offer,
+    };
+
+    void *r = raft_new();
+    raft_set_callbacks(r, &funcs, NULL);
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+    raft_add_node(r, NULL, 3, 0);
+    raft_set_current_term(r, 1);
+
+    /* append some log entries */
+    raft_entry_t ety = {};
+    ety.term = 1;
+    ety.id = 1;
+    ety.data.buf = "aaa";
+    ety.data.len = 3;
+    raft_append_entry(r, &ety);
+    ety.id = 2;
+    ety.data.buf = "bbb";
+    raft_append_entry(r, &ety);
+    ety.id = 3;
+    ety.data.buf = "ccc";
+    raft_append_entry(r, &ety);
+
+    raft_free(r);
+    /* no crash = pass */
+}
+
+void TestRaft_memory_clear_resets_state_and_reusable(CuTest * tc)
+{
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+        .log_offer = __raft_log_offer,
+    };
+
+    void *r = raft_new();
+    raft_set_callbacks(r, &funcs, NULL);
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+    raft_set_current_term(r, 5);
+    raft_entry_t ety = {};
+    ety.term = 5;
+    ety.id = 1;
+    ety.data.buf = "data";
+    ety.data.len = 4;
+    raft_append_entry(r, &ety);
+    raft_set_commit_idx(r, 1);
+
+    raft_clear(r);
+
+    /* state should be reset */
+    CuAssertIntEquals(tc, 0, raft_get_current_term(r));
+    CuAssertIntEquals(tc, -1, raft_get_voted_for(r));
+    CuAssertIntEquals(tc, 0, raft_get_commit_idx(r));
+    CuAssertIntEquals(tc, 0, raft_get_last_applied_idx(r));
+    CuAssertIntEquals(tc, 0, raft_get_num_nodes(r));
+    CuAssertIntEquals(tc, 0, raft_get_log_count(r));
+    CuAssertTrue(tc, raft_is_follower(r));
+
+    raft_free(r);
+}
+
+void TestRaft_memory_clear_then_readd_nodes(CuTest * tc)
+{
+    raft_cbs_t funcs = {
+        .persist_term = __raft_persist_term,
+        .persist_vote = __raft_persist_vote,
+        .log_offer = __raft_log_offer,
+    };
+
+    void *r = raft_new();
+    raft_set_callbacks(r, &funcs, NULL);
+    raft_add_node(r, NULL, 1, 1);
+    raft_add_node(r, NULL, 2, 0);
+    raft_set_current_term(r, 3);
+
+    raft_clear(r);
+
+    /* re-add nodes and operate */
+    raft_add_node(r, NULL, 10, 1);
+    raft_add_node(r, NULL, 20, 0);
+    CuAssertIntEquals(tc, 2, raft_get_num_nodes(r));
+    CuAssertTrue(tc, NULL != raft_get_node(r, 10));
+    CuAssertTrue(tc, NULL != raft_get_node(r, 20));
+
+    raft_set_current_term(r, 1);
+    raft_entry_t ety = {};
+    ety.term = 1;
+    ety.id = 1;
+    ety.data.buf = "new";
+    ety.data.len = 3;
+    raft_append_entry(r, &ety);
+    CuAssertIntEquals(tc, 1, raft_get_log_count(r));
+
+    raft_free(r);
+}
+
+/* Custom heap tracking */
+static int custom_malloc_count = 0;
+static int custom_calloc_count = 0;
+static int custom_realloc_count = 0;
+static int custom_free_count = 0;
+
+static void *test_malloc(size_t sz)
+{
+    custom_malloc_count++;
+    return malloc(sz);
+}
+
+static void *test_calloc(size_t nmemb, size_t sz)
+{
+    custom_calloc_count++;
+    return calloc(nmemb, sz);
+}
+
+static void *test_realloc(void *ptr, size_t sz)
+{
+    custom_realloc_count++;
+    return realloc(ptr, sz);
+}
+
+static void test_free(void *ptr)
+{
+    custom_free_count++;
+    free(ptr);
+}
+
+void TestRaft_memory_custom_heap_functions(CuTest * tc)
+{
+    custom_malloc_count = 0;
+    custom_calloc_count = 0;
+    custom_realloc_count = 0;
+    custom_free_count = 0;
+
+    raft_set_heap_functions(test_malloc, test_calloc, test_realloc, test_free);
+
+    void *r = raft_new();
+    CuAssertTrue(tc, NULL != r);
+    /* raft_new uses calloc for the server and log */
+    CuAssertTrue(tc, custom_calloc_count > 0);
+
+    raft_add_node(r, NULL, 1, 1);
+    /* add_node uses realloc for node array and calloc for node */
+    CuAssertTrue(tc, custom_realloc_count > 0);
+
+    int free_before = custom_free_count;
+    raft_free(r);
+    CuAssertTrue(tc, custom_free_count > free_before);
+
+    /* restore default heap functions */
+    raft_set_heap_functions(malloc, calloc, realloc, free);
+}
+
+static void *test_calloc_fail(size_t nmemb, size_t sz)
+{
+    (void)nmemb;
+    (void)sz;
+    return NULL;
+}
+
+void TestRaft_memory_custom_heap_malloc_null_returns_nomem(CuTest * tc)
+{
+    /* Set calloc to always fail — raft_new should return NULL */
+    raft_set_heap_functions(malloc, test_calloc_fail, realloc, free);
+
+    void *r = raft_new();
+    CuAssertTrue(tc, NULL == r);
+
+    /* restore default heap functions */
+    raft_set_heap_functions(malloc, calloc, realloc, free);
+}
+
+/* ===================== End memory management tests ================= */
+
 void TestRaft_membership_add_node_committed_sets_flags(CuTest * tc)
 {
     raft_cbs_t funcs = {
