@@ -659,6 +659,8 @@ void TestLog_delete_with_idx_below_base(CuTest * tc)
     /* delete with idx=1 which is at/below base — should delete all remaining */
     CuAssertIntEquals(tc, 0, log_delete(l, 1));
     CuAssertIntEquals(tc, 0, log_count(l));
+    log_free(l);
+    raft_free(r);
 }
 
 void TestLog_delete_with_idx_beyond_current(CuTest * tc)
@@ -689,6 +691,8 @@ void TestLog_delete_with_idx_beyond_current(CuTest * tc)
     /* delete with idx beyond current entries — no-op */
     CuAssertIntEquals(tc, 0, log_delete(l, 10));
     CuAssertIntEquals(tc, 2, log_count(l));
+    log_free(l);
+    raft_free(r);
 }
 
 void TestLog_poll_on_empty_log(CuTest * tc)
@@ -702,6 +706,7 @@ void TestLog_poll_on_empty_log(CuTest * tc)
     /* polling empty log returns -1 */
     CuAssertIntEquals(tc, -1, log_poll(l, (void*)&ety));
     CuAssertIntEquals(tc, 0, log_count(l));
+    log_free(l);
 }
 
 void TestLog_poll_all_entries_then_poll_empty(CuTest * tc)
@@ -732,6 +737,7 @@ void TestLog_poll_all_entries_then_poll_empty(CuTest * tc)
     CuAssertIntEquals(tc, -1, log_poll(l, (void*)&ety));
     CuAssertIntEquals(tc, 0, log_count(l));
     CuAssertIntEquals(tc, 2, log_get_current_idx(l));
+    log_free(l);
 }
 
 void TestLog_get_at_idx_after_polling(CuTest * tc)
@@ -763,6 +769,7 @@ void TestLog_get_at_idx_after_polling(CuTest * tc)
     CuAssertIntEquals(tc, 3, log_get_at_idx(l, 3)->id);
     /* idx 4 beyond range */
     CuAssertTrue(tc, NULL == log_get_at_idx(l, 4));
+    log_free(l);
 }
 
 void TestLog_circular_buffer_wraparound(CuTest * tc)
@@ -808,6 +815,7 @@ void TestLog_circular_buffer_wraparound(CuTest * tc)
     /* polled entries should not be accessible */
     CuAssertTrue(tc, NULL == log_get_at_idx(l, 1));
     CuAssertTrue(tc, NULL == log_get_at_idx(l, 2));
+    log_free(l);
 }
 
 void TestLog_count_after_mixed_poll_append(CuTest * tc)
@@ -850,6 +858,7 @@ void TestLog_count_after_mixed_poll_append(CuTest * tc)
     CuAssertIntEquals(tc, 0, log_append_entry(l, &e4));
     CuAssertIntEquals(tc, 1, log_count(l));
     CuAssertIntEquals(tc, 4, log_get_current_idx(l));
+    log_free(l);
 }
 
 void TestLog_new_from_base(CuTest * tc)
@@ -877,6 +886,7 @@ void TestLog_new_from_base(CuTest * tc)
     /* indices below base return NULL */
     CuAssertTrue(tc, NULL == log_get_at_idx(l, 1));
     CuAssertTrue(tc, NULL == log_get_at_idx(l, 5));
+    log_free(l);
 }
 
 void TestLog_capacity_growth_multiple_reallocs(CuTest * tc)
@@ -911,6 +921,7 @@ void TestLog_capacity_growth_multiple_reallocs(CuTest * tc)
 
     CuAssertIntEquals(tc, 20, log_count(l));
     CuAssertIntEquals(tc, 20, log_get_current_idx(l));
+    log_free(l);
 }
 
 void TestLog_peektail_on_empty_log(CuTest * tc)
@@ -919,4 +930,5 @@ void TestLog_peektail_on_empty_log(CuTest * tc)
 
     l = log_new();
     CuAssertTrue(tc, NULL == log_peektail(l));
+    log_free(l);
 }

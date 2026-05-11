@@ -1,5 +1,15 @@
 *.o
 *.gcno
+*.gcda
+*.gcov
 *~
+libraft.so
+libraft.a
 libcraft.so
 libcraft.a
+tests_main
+
+# Nix
+result
+result-*
+.direnv/

@@ -59,6 +59,15 @@ tests: src/raft_server.c src/raft_server_properties.c src/raft_log.c src/raft_no
 	./tests_main
 	gcov raft_server.c
 
+.PHONY: tests-valgrind
+tests-valgrind: src/raft_server.c src/raft_server_properties.c src/raft_log.c src/raft_node.c $(TEST_DIR)/main_test.c $(TEST_DIR)/test_*.c $(TEST_DIR)/mock_send_functions.c $(TEST_DIR)/CuTest.c $(LLQUEUE_DIR)/linked_list_queue.c
+	$(CC) -Iinclude -Werror -Werror=return-type -Werror=uninitialized -Wcast-align \
+		-Wno-pointer-sign -fno-omit-frame-pointer -fno-common -fsigned-char \
+		-Wunused-variable -I$(LLQUEUE_DIR) -g -O1 -o tests_main $^
+	valgrind --leak-check=full --show-leak-kinds=definite --errors-for-leak-kinds=definite \
+		--error-exitcode=1 --track-origins=yes \
+		--suppressions=$(TEST_DIR)/valgrind.supp ./tests_main
+
 .PHONY: test_fuzzer
 test_fuzzer:
 	python tests/log_fuzzer.py
