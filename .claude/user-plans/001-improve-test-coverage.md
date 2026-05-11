@@ -24,6 +24,40 @@
 | T8   | TASK:COMPLETE | Snapshot edge cases (test_snapshotting.c) |
 | T9   | TASK:COMPLETE | Memory management (test_server.c) |
 | T10  | TASK:COMPLETE | Entry type helpers and misc API (test_server.c) |
+| T11  | TASK:COMPLETE | Nix dev shell + valgrind target (flake.nix, Makefile) |
+| T12  | TASK:PENDING  | Fix valgrind leaks: test_node.c (22 tests, 0 leaking — already done) |
+| T13  | TASK:PENDING  | Fix valgrind leaks: test_log.c (27 tests, 19 leaking) |
+| T14  | TASK:PENDING  | Fix valgrind leaks: test_scenario.c (1 test, 1 leaking) |
+| T15  | TASK:PENDING  | Fix valgrind leaks: test_snapshotting.c (29 tests, ~20 leaking) |
+| T16  | TASK:PENDING  | Fix valgrind leaks: test_server.c batch 1 — property/state tests (lines 1-600) |
+| T17  | TASK:PENDING  | Fix valgrind leaks: test_server.c batch 2 — requestvote tests (lines 600-1200) |
+| T18  | TASK:PENDING  | Fix valgrind leaks: test_server.c batch 3 — appendentries tests (lines 1200-2200) |
+| T19  | TASK:PENDING  | Fix valgrind leaks: test_server.c batch 4 — leader/election tests (lines 2200-3200) |
+| T20  | TASK:PENDING  | Fix valgrind leaks: test_server.c batch 5 — remaining tests (lines 3200-end) |
+| T21  | TASK:PENDING  | Final valgrind green: 0 errors, 0 definitely lost (only CuTest framework suppressed) |
+
+---
+
+## Valgrind Baseline (276 errors, 307 blocks, 59,984 bytes definitely lost)
+
+Breakdown by file:
+- test_server.c: 221 leak references across ~170 unique test functions (196 total)
+- test_snapshotting.c: 30 leak references across ~20 test functions (29 total)
+- test_log.c: 21 leak references across 19 test functions (27 total)
+- test_scenario.c: 6 leak references in 1 test function (1 total)
+- mock_send_functions.c: 29 via __append_msg (called from test functions)
+
+Breakdown by allocation type:
+- raft_new (calloc): 216 — most tests create a raft server and never free it
+- __append_msg (malloc): 29 — mock send functions allocate messages never freed
+- log_alloc (calloc): 17 — standalone log tests
+- raft_node_new (malloc): 10 — standalone node tests (fixed in T12)
+- llqueue_new (calloc): 2 — queue used by mock infrastructure
+- __log_pop (malloc): 1 — log pop callback
+
+Fix pattern per test: add `raft_free(r)` and/or `log_free(l)` and/or `llqueue_free(queue)` at end of each function.
+
+Only legitimate suppressions: CuSuiteNew + CuStringNew (CuTest framework internals, ~8KB, unfixable without modifying CuTest).
 
 ---
 

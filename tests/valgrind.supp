@@ -1,8 +1,6 @@
 # Valgrind suppression file for raft test suite.
-# Suppresses known framework and test harness allocations that are not freed
-# because CuTest has no per-test teardown mechanism.
+# Only suppress allocations that are genuinely unfixable (CuTest framework internals).
 
-# CuTest framework infrastructure
 {
    CuSuiteNew
    Memcheck:Leak
@@ -17,106 +15,4 @@
    match-leak-kinds: definite
    fun:malloc
    fun:CuStringNew
-}
-
-# Test-level raft_new() allocations not freed (no teardown in CuTest)
-{
-   raft_new_in_tests
-   Memcheck:Leak
-   match-leak-kinds: definite
-   fun:calloc
-   fun:raft_new
-   ...
-   fun:CuTestRun
-}
-
-# Test-level log_new/log_alloc allocations not freed
-{
-   log_new_in_tests
-   Memcheck:Leak
-   match-leak-kinds: definite
-   fun:calloc
-   fun:log_alloc
-   ...
-   fun:CuTestRun
-}
-
-# Test-level raft_node_new allocations not freed
-{
-   raft_node_new_in_tests
-   Memcheck:Leak
-   match-leak-kinds: definite
-   fun:malloc
-   fun:raft_node_new
-   ...
-   fun:CuTestRun
-}
-
-# llqueue_new allocations in tests
-{
-   llqueue_new_in_tests
-   Memcheck:Leak
-   match-leak-kinds: definite
-   fun:calloc
-   fun:llqueue_new
-   ...
-   fun:CuTestRun
-}
-
-# Internal log allocations (entries array realloc)
-{
-   log_entry_array_in_tests
-   Memcheck:Leak
-   match-leak-kinds: definite
-   fun:realloc
-   ...
-   fun:log_append_entry
-   ...
-   fun:CuTestRun
-}
-
-# Internal raft node array allocations
-{
-   raft_add_node_in_tests
-   Memcheck:Leak
-   match-leak-kinds: definite
-   ...
-   fun:raft_add_node
-   ...
-   fun:CuTestRun
-}
-
-# Log created internally by raft_new
-{
-   raft_new_internal_log
-   Memcheck:Leak
-   match-leak-kinds: definite
-   fun:calloc
-   fun:log_alloc
-   fun:log_new
-   fun:raft_new
-   ...
-   fun:CuTestRun
-}
-
-# Mock send function message allocations (no teardown in CuTest)
-{
-   append_msg_in_tests
-   Memcheck:Leak
-   match-leak-kinds: definite
-   fun:malloc
-   fun:__append_msg
-   ...
-   fun:CuTestRun
-}
-
-# Log pop callback allocations in tests
-{
-   log_pop_callback_in_tests
-   Memcheck:Leak
-   match-leak-kinds: definite
-   fun:malloc
-   fun:__log_pop
-   ...
-   fun:CuTestRun
 }
