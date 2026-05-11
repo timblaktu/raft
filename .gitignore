@@ -3,9 +3,13 @@
 *.gcda
 *.gcov
 *~
-libcraft.so
-libcraft.a
 libraft.so
 libraft.a
+libcraft.so
+libcraft.a
 tests_main
+
+# Nix
 result
+result-*
+.direnv/

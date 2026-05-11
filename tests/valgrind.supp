@@ -1,0 +1,18 @@
+# Valgrind suppression file for raft test suite.
+# Only suppress allocations that are genuinely unfixable (CuTest framework internals).
+
+{
+   CuSuiteNew
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:CuSuiteNew
+}
+
+{
+   CuStringNew
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:CuStringNew
+}

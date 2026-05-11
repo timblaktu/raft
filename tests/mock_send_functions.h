@@ -13,7 +13,11 @@ typedef enum
 
 void senders_new();
 
+void senders_free();
+
 void* sender_new(void* address);
+
+void sender_free(void* s);
 
 void* sender_poll_msg_data(void* s);
 

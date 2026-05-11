@@ -84,4 +84,8 @@ one_more_time:
 
     CuAssertTrue(tc, 0 != leaders);
     CuAssertTrue(tc, 1 == leaders);
+
+    for (j = 0; j < 3; j++)
+        raft_free(r[j]);
+    senders_free();
 }

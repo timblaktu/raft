@@ -38,6 +38,7 @@
 
             # Testing
             pythonEnv
+            valgrind
 
             # Code coverage
             lcov
