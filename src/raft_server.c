@@ -108,7 +108,12 @@ void raft_free(raft_server_t* me_)
 
     log_free(me->log);
     if (me->nodes)
+    {
+        int i;
+        for (i = 0; i < me->num_nodes; i++)
+            raft_node_free(me->nodes[i]);
         __raft_free(me->nodes);
+    }
     __raft_free(me_);
 }
 
@@ -125,6 +130,14 @@ void raft_clear(raft_server_t* me_)
     me->current_leader = NULL;
     me->commit_idx = 0;
     me->last_applied_idx = 0;
+    if (me->nodes)
+    {
+        int i;
+        for (i = 0; i < me->num_nodes; i++)
+            raft_node_free(me->nodes[i]);
+        __raft_free(me->nodes);
+        me->nodes = NULL;
+    }
     me->num_nodes = 0;
     me->node = NULL;
     log_clear_entries(me->log);
@@ -1400,7 +1413,7 @@ int raft_begin_load_snapshot(
         if (raft_get_nodeid(me_) == raft_node_get_id(me->nodes[i]))
             my_node_by_idx = i;
         else
-            raft_node_set_active(me->nodes[i], 0);
+            raft_node_free(me->nodes[i]);
     }
 
     /* this will be realloc'd by a raft_add_node */
