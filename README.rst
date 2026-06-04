@@ -6,6 +6,40 @@
 
 C implementation of the Raft consensus protocol, BSD licensed.
 
+Fork Changes (timblaktu/raft)
+=============================
+
+This fork extends the upstream `willemt/raft <https://github.com/willemt/raft>`_ with improved test coverage and bug fixes, prepared for use as a foundation for an embedded Raft implementation on STM32/FreeRTOS.
+
+**What changed:**
+
+* **118 new tests** (157 -> 275 total) covering node API, log edge cases, server property accessors, callback error propagation, election/AppendEntries edge cases, membership changes, snapshots, memory management, and entry type helpers
+* **3 production memory leak fixes** in ``src/raft_server.c``:
+
+  - ``raft_free()``: was not freeing individual ``raft_node_t`` allocations
+  - ``raft_clear()``: orphaned node allocations when resetting
+  - ``raft_begin_load_snapshot()``: leaked non-self nodes instead of freeing them
+
+* **Valgrind-clean**: 0 errors, 0 definitely lost (CuTest framework allocations suppressed)
+* **Nix dev shell**: ``flake.nix`` provides gcc, make, and valgrind with no manual setup
+* **Valgrind test target**: ``make tests-valgrind`` with suppression file for CuTest internals
+
+**Branches:**
+
+* ``nix`` - main development branch with flake and all changes
+* ``tests/improve-coverage`` - test coverage work
+* ``fix/node-memory-leaks`` - the 3 production fixes isolated for upstream PR
+
+**Quick start:**
+
+.. code-block:: bash
+
+   nix develop          # enter dev shell (auto-fetches CLinkedListQueue)
+   make tests           # run 275 tests
+   make tests-valgrind  # run under valgrind (0 errors expected)
+
+Without Nix, manually clone `CLinkedListQueue <https://github.com/willemt/CLinkedListQueue>`_ into the repo root, then ``make tests``.
+
 See `raft.h <https://github.com/willemt/raft/blob/master/include/raft.h>`_ for full documentation.
 
 See `ticketd <https://github.com/willemt/ticketd>`_ for real life use of this library.
