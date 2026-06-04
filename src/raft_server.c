@@ -44,6 +44,10 @@ void raft_set_heap_functions(void *(*_malloc)(size_t),
     __raft_free = _free;
 }
 
+#ifdef RAFT_NO_DEBUG_LOG
+/* Stubbed out: saves ~1KB stack per call site + ~50 format strings from .rodata */
+#define __log(me_, node, fmt, ...) ((void)0)
+#else
 static void __log(raft_server_t *me_, raft_node_t* node, const char *fmt, ...)
 {
     raft_server_private_t* me = (raft_server_private_t*)me_;
@@ -56,6 +60,7 @@ static void __log(raft_server_t *me_, raft_node_t* node, const char *fmt, ...)
 
     me->cb.log(me_, node, me->udata, buf);
 }
+#endif
 
 void raft_randomize_election_timeout(raft_server_t* me_)
 {
@@ -78,7 +83,11 @@ raft_server_t* raft_new(void)
     me->request_timeout = 200;
     me->election_timeout = 1000;
     raft_randomize_election_timeout((raft_server_t*)me);
+#ifdef RAFT_LOG_INITIAL_CAPACITY
+    me->log = log_alloc(RAFT_LOG_INITIAL_CAPACITY);
+#else
     me->log = log_new();
+#endif
     if (!me->log) {
         __raft_free(me);
         return NULL;
